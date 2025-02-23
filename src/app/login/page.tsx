@@ -12,7 +12,7 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('http://localhost:5001/api/auth/login', { // Update the URL to your backend
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -22,10 +22,12 @@ export default function Login() {
 
     if (res.ok) {
       const { token } = await res.json();
-      localStorage.setItem('token', token); // Store token in local storage
-      router.push('/'); // Redirect to home
+      console.log('Token received:', token);
+      localStorage.setItem('token', token);
+      router.push('/dashboard'); // Changed from '/' to '/dashboard'
     } else {
       const { message } = await res.json();
+      console.error('Login error:', message);
       alert(message);
     }
   };
@@ -53,7 +55,7 @@ export default function Login() {
         <Button type="submit">Login</Button>
       </form>
       <p className="mt-4">
-        Don't have an account?{' '}
+        Don&apos;t have an account?{' '}
         <Link href="/signup">
           <Button variant="link">Sign Up</Button>
         </Link>
