@@ -41,6 +41,11 @@ export default function UserManagement() {
   }, [router]);
 
   const handleDeleteUser = async (id: string) => {
+    const confirmDelete = window.confirm('Are you sure you want to delete this user?');
+    if (!confirmDelete) {
+      return;
+    }
+
     const token = localStorage.getItem('token');
     if (!token) {
       router.push('/login');
@@ -86,9 +91,9 @@ export default function UserManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <h1 className="text-3xl font-bold">User Management</h1>
-      <table className="min-w-full mt-4">
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">User Management</h1>
+      <table className="min-w-full">
         <thead>
           <tr>
             <th className="border px-4 py-2">Name</th>
@@ -106,6 +111,7 @@ export default function UserManagement() {
                 <select
                   value={user.role}
                   onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                  className="w-full p-2"
                 >
                   <option value="USER">User</option>
                   <option value="ADMIN">Admin</option>

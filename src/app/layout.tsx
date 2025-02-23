@@ -1,23 +1,63 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import { cn } from "@/lib/utils";
+'use client';
 
-const inter = Inter({ subsets: ["latin"] });
+import { ReactNode, useEffect, useState } from 'react';
+import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
+import './globals.css';
+import { cn } from '@/lib/utils';
+import { Inter } from 'next/font/google';
+import { usePathname } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: "WebRTC SaaS Platform",
-  description: "Video calling platform built with WebRTC",
-};
+const inter = Inter({ subsets: ['latin'] });
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+interface LayoutProps {
+  children: ReactNode;
+}
+
+const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const pathname = usePathname();
+
+  // Define public routes where we don't want to show the sidebar and header
+  const isPublicRoute = ['/', '/login', '/signup'].includes(pathname);
+
+  useEffect(() => {
+    // Access localStorage only on the client side
+    const email = localStorage.getItem('userEmail');
+    setUserEmail(email || '');
+    setIsLoading(false);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userEmail');
+    window.location.href = '/login';
+  };
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
   return (
-    <html lang="en">
-      <body className={cn(inter.className, "min-h-screen bg-background")}>{children}</body>
+    <html lang='en'>
+      <body className={cn(inter.className, 'min-h-screen bg-background')}>
+        {isPublicRoute ? (
+          // Render only the content for public routes
+          <main>{children}</main>
+        ) : (
+          // Render the dashboard layout with sidebar and header
+          <div className='flex'>
+            <Sidebar />
+            <div className='flex-1'>
+              <Header userEmail={userEmail} onLogout={handleLogout} />
+              <main className='p-4'>{children}</main>
+            </div>
+          </div>
+        )}
+      </body>
     </html>
   );
-}
+};
+
+export default Layout;

@@ -24,6 +24,7 @@ export default function Login() {
       const { token } = await res.json();
       console.log('Token received:', token);
       localStorage.setItem('token', token);
+      localStorage.setItem('userEmail', email);
       router.push('/dashboard'); // Changed from '/' to '/dashboard'
     } else {
       const { message } = await res.json();
