@@ -32,7 +32,7 @@ export default function Dashboard() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch user data');
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const userData = await response.json();
