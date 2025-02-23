@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
+import { socket } from '@/lib/socket';
 
 const Call = ({ roomId }: { roomId: string }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -10,7 +10,7 @@ const Call = ({ roomId }: { roomId: string }) => {
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
 
   useEffect(() => {
-    socketRef.current = io('http://localhost:5000');
+    socketRef.current = socket;
     socketRef.current.emit('join', roomId);
 
     socketRef.current.on('offer', async (data: any) => {

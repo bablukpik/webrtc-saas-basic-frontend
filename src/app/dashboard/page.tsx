@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { socket } from '@/lib/socket';
+import IncomingCallModal from '@/components/IncomingCallModal';
 
 interface User {
   id: string;
@@ -13,17 +15,17 @@ interface User {
 
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ callerId: string } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is authenticated
     const token = localStorage.getItem('token');
     if (!token) {
       router.push('/login');
       return;
     }
 
-    // Fetch user data
+    // Fetch user data and set up socket connection
     const fetchUserData = async () => {
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
@@ -38,6 +40,13 @@ export default function Dashboard() {
 
         const userData = await response.json();
         setUser(userData);
+        console.log('User data fetched:', userData);
+
+        // Join socket room with user ID
+        socket.emit('join', userData.id, (response: any) => {
+          console.log('Join room response:', response);
+        });
+        console.log('Joined socket room with ID:', userData.id);
       } catch (error) {
         console.error('Error fetching user data:', error);
         localStorage.removeItem('token');
@@ -46,6 +55,27 @@ export default function Dashboard() {
     };
 
     fetchUserData();
+
+    // Socket event listeners
+    socket.on('connect', () => {
+      console.log('Socket connected in Dashboard with ID:', socket.id);
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error in Dashboard:', error);
+    });
+
+    socket.on('incoming-call', (data) => {
+      console.log('Incoming call event received:', data);
+      setIncomingCall({ callerId: data.callerId });
+    });
+
+    return () => {
+      socket.off('connect');
+      socket.off('connect_error');
+      socket.off('incoming-call');
+      console.log('Cleaned up socket listeners');
+    };
   }, [router]);
 
   const handleLogout = () => {
@@ -59,15 +89,22 @@ export default function Dashboard() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold">Dashboard</h1>
+      {incomingCall && (
+        <IncomingCallModal
+          callerName={incomingCall.callerId}
+          onAccept={() => {
+            console.log('Call accepted');
+            setIncomingCall(null);
+            // Logic to start the call can go here
+          }}
+          onReject={() => {
+            console.log('Call rejected');
+            setIncomingCall(null);
+          }}
+        />
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Start Call Card */}
-        <div className="p-6 border rounded-lg shadow-sm">
-          <h2 className="text-xl font-semibold mb-4">Start a Call</h2>
-          <Button className="w-full" onClick={() => router.push('/call')}>
-            New Call
-          </Button>
-        </div>
-
         {/* User Management Card - Only visible to Admin */}
         {user.role === 'ADMIN' && (
           <div className="p-6 border rounded-lg shadow-sm">
