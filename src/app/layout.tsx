@@ -7,6 +7,10 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { Inter } from 'next/font/google';
 import { usePathname } from 'next/navigation';
+import { ReduxProvider } from '@/lib/redux/provider';
+import { Toaster } from 'sonner';
+import { SocketProvider } from '@/providers/socket-provider';
+import { WebRTCProvider } from '@/providers/webrtc-provider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -42,19 +46,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <html lang='en'>
       <body className={cn(inter.className, 'min-h-screen bg-background')}>
-        {isPublicRoute ? (
-          // Render only the content for public routes
-          <main>{children}</main>
-        ) : (
-          // Render the dashboard layout with sidebar and header
-          <div className='flex'>
-            <Sidebar />
-            <div className='flex-1'>
-              <Header userEmail={userEmail} onLogout={handleLogout} />
-              <main className='p-4'>{children}</main>
-            </div>
-          </div>
-        )}
+        <ReduxProvider>
+          <SocketProvider>
+            <WebRTCProvider>
+              {isPublicRoute ? (
+                // Render only the content for public routes
+                <main>{children}</main>
+              ) : (
+                // Render the dashboard layout with sidebar and header
+                <div className='flex'>
+                  <Sidebar />
+                  <div className='flex-1'>
+                    <Header userEmail={userEmail} onLogout={handleLogout} />
+                    <main className='p-4'>{children}</main>
+                  </div>
+                </div>
+              )}
+              <Toaster richColors position="top-center" />
+            </WebRTCProvider>
+          </SocketProvider>
+        </ReduxProvider>
       </body>
     </html>
   );

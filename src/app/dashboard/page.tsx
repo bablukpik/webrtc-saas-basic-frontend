@@ -1,64 +1,73 @@
-"use client";
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { socket } from '@/lib/socket';
-import IncomingCallModal from '@/components/IncomingCallModal';
+import { IncomingCallModal } from '@/components/IncomingCallModal';
+import { useSocket } from '@/providers/socket-provider';
+import { SocketDebug } from '@/components/SocketDebug';
 
 interface User {
   id: string;
-  name: string;
   email: string;
+  name: string;
   role: string;
 }
 
 export default function Dashboard() {
-  const [user, setUser] = useState<User | null>(null);
+  const [userData, setUserData] = useState<User | null>(null);
   const [incomingCall, setIncomingCall] = useState<{ callerId: string } | null>(null);
   const router = useRouter();
+  const { socket, isConnected } = useSocket();
+  const [isSocketReady, setIsSocketReady] = useState(false);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+  const fetchUserData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
 
-    // Fetch user data and set up socket connection
-    const fetchUserData = async () => {
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-        const userData = await response.json();
-        setUser(userData);
-        console.log('User data fetched:', userData);
+      const data = await response.json();
+      setUserData(data);
 
-        // Join socket room with user ID
-        socket.emit('join', userData.id, (response: any) => {
+      // Only emit socket events if socket is connected
+      if (socket?.connected) {
+        console.log('Joining socket room with ID:', data.id);
+        socket.emit('join', data.id, (response: { success: boolean }) => {
           console.log('Join room response:', response);
         });
-        console.log('Joined socket room with ID:', userData.id);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        localStorage.removeItem('token');
-        router.push('/login');
       }
-    };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
 
+  // Fetch user data when component mounts
+  useEffect(() => {
     fetchUserData();
+  }, [router]);
 
-    // Socket event listeners
+  // Handle socket events after socket is ready
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    console.log('Setting up socket listeners in Dashboard');
+
     socket.on('connect', () => {
       console.log('Socket connected in Dashboard with ID:', socket.id);
+      // Refetch user data to join room after reconnection
+      fetchUserData();
     });
 
     socket.on('connect_error', (error) => {
@@ -71,68 +80,73 @@ export default function Dashboard() {
     });
 
     return () => {
+      console.log('Cleaning up socket listeners in Dashboard');
       socket.off('connect');
       socket.off('connect_error');
       socket.off('incoming-call');
-      console.log('Cleaned up socket listeners');
     };
-  }, [router]);
+  }, [socket, isConnected]);
+
+  // Additional socket event handlers
+  useEffect(() => {
+    if (!socket || !isSocketReady) return;
+
+    socket.on('user-status-change', (data) => {
+      console.log('User status changed:', data);
+    });
+
+    return () => {
+      socket.off('user-status-change');
+    };
+  }, [socket, isSocketReady]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     router.push('/login');
   };
 
-  if (!user) {
+  if (!userData) {
     return <div>Loading...</div>;
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
+      <SocketDebug onSocketReady={setIsSocketReady} />
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="space-y-4">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          {userData && (
+            <div>
+              <p>Welcome, {userData.name}!</p>
+              <p>Email: {userData.email}</p>
+              <p>Role: {userData.role}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Recent Activity</h2>
+          <div className='space-y-2'>
+            {/* Add recordings list here */}
+            <p className='text-muted-foreground'>No recordings found</p>
+          </div>
+        </div>
+      </div>
+
       {incomingCall && (
         <IncomingCallModal
-          callerName={incomingCall.callerId}
+          callerName="Unknown"
           onAccept={() => {
-            console.log('Call accepted');
+            // Handle accept call
             setIncomingCall(null);
-            // Logic to start the call can go here
           }}
           onReject={() => {
-            console.log('Call rejected');
+            // Handle reject call
             setIncomingCall(null);
           }}
         />
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* User Management Card - Only visible to Admin */}
-        {user.role === 'ADMIN' && (
-          <div className="p-6 border rounded-lg shadow-sm">
-            <h2 className="text-xl font-semibold mb-4">User Management</h2>
-            <Button className="w-full" onClick={() => router.push('/admin/users')}>
-              Manage Users
-            </Button>
-          </div>
-        )}
-
-        {/* Recent Calls Card */}
-        <div className="p-6 border rounded-lg shadow-sm">
-          <h2 className="text-xl font-semibold mb-4">Recent Calls</h2>
-          <div className="space-y-2">
-            {/* Add recent calls list here */}
-            <p className="text-muted-foreground">No recent calls</p>
-          </div>
-        </div>
-
-        {/* Recordings Card */}
-        <div className="p-6 border rounded-lg shadow-sm">
-          <h2 className="text-xl font-semibold mb-4">Recordings</h2>
-          <div className="space-y-2">
-            {/* Add recordings list here */}
-            <p className="text-muted-foreground">No recordings found</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
-} 
+}
