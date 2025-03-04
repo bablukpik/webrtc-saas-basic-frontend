@@ -44,7 +44,7 @@ const WebRTCContext = createContext<WebRTCContextType>({
   toggleRecording: () => {},
   acceptCall: async () => {},
   rejectCall: () => {},
-  initiateCall: () => {}
+  initiateCall: () => {},
 });
 
 export const useWebRTC = () => {
@@ -78,166 +78,127 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
 
-  useEffect(() => {
-    if (!socket) return;
+  const initiateCall = async (targetUserId: string) => {
+    if (!socket) {
+      toast.error('Socket connection not available');
+      return;
+    }
 
-    // Listen for incoming call
-    socket.on('incoming-call', async ({ callerId, callerName }) => {
-      console.log('[WebRTC] Received incoming call from:', callerName, '(ID:', callerId, ')');
-      
-      // Show incoming call modal
-      setIncomingCall({
-        callerId,
-        callerName: callerName || 'Unknown User',
-        offer: {} as RTCSessionDescriptionInit // We'll get this after accepting
-      });
+    if (isCallInProgress) {
+      toast.error('Call already in progress');
+      return;
+    }
 
-      // Play ringtone
-      try {
-        const audio = new Audio('/incoming-call.mp3');
-        audio.loop = true;
-        audio.play().catch(err => console.error('Failed to play ringtone:', err));
-        
-        // Store audio element reference for cleanup
-        const audioRef = audio;
-        return () => {
-          audioRef.pause();
-          audioRef.currentTime = 0;
-        };
-      } catch (err) {
-        console.error('Error playing ringtone:', err);
-      }
-    });
+    const currentUserId = localStorage.getItem('userId');
+    const currentUserName = localStorage.getItem('userName');
 
-    // Debug all socket events
-    socket.onAny((event, ...args) => {
-      console.log(`[WebRTC] Socket event: ${event}`, args);
-    });
+    if (!currentUserId || !currentUserName) {
+      toast.error('User not authenticated');
+      return;
+    }
 
-    socket.on('call-answer', async ({ answer, userId }) => {
-      console.log('Call answered by:', userId);
-      if (!peerConnection.current) return;
-      
-      try {
-        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(answer));
-      } catch (error) {
-        console.error('Error setting remote description:', error);
-      }
-    });
+    console.log('Checking user availability:', targetUserId);
+    setIsCallInProgress(true);
 
-    socket.on('ice-candidate', async ({ candidate, userId }) => {
-      if (!peerConnection.current) return;
-      
-      try {
-        await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (error) {
-        console.error('Error adding ICE candidate:', error);
-      }
-    });
-
-    socket.on('call-rejected', () => {
-      toast.error('Call Rejected', {
-        description: 'The other user rejected your call'
-      });
-      endCall();
-    });
-
-    socket.on('call-ended', () => {
-      endCall();
-    });
-
-    return () => {
-      socket.off('incoming-call');
-      socket.off('call-answer');
-      socket.off('ice-candidate');
-      socket.off('call-rejected');
-      socket.off('call-ended');
-      setIncomingCall(null);
-    };
-  }, [socket]);
-
-  const startCall = async (targetUserId: string) => {
     try {
-      console.log('[WebRTC] Starting call to:', targetUserId);
-      
-      if (!socket?.connected) {
-        throw new Error('Socket not connected');
-      }
+      // First check if user is available
+      socket.emit(SocketEvents.CHECK_USER_AVAILABILITY, { targetUserId });
 
-      // First, check if user is available
-      socket.emit('check-user-availability', { targetUserId });
+      // Wait for availability response
+      socket.once(SocketEvents.USER_AVAILABILITY_RESPONSE, async (response) => {
+        console.log('User availability response:', response);
 
-      socket.once('user-availability-response', async (response) => {
-        if (!response.isAvailable) {
+        if (response.isAvailable) {
+          console.log('Initiating call to:', targetUserId);
+
+          // Get local media stream
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+          setLocalStream(stream);
+
+          // Create and setup peer connection
+          peerConnection.current = new RTCPeerConnection(configuration);
+
+          // Add tracks to peer connection
+          stream.getTracks().forEach((track) => {
+            if (!peerConnection.current) return;
+            peerConnection.current.addTrack(track, stream);
+          });
+
+          // Handle ICE candidates
+          peerConnection.current.onicecandidate = (event) => {
+            if (event.candidate) {
+              socket.emit(SocketEvents.ICE_CANDIDATE, {
+                candidate: event.candidate,
+                targetUserId,
+              });
+            }
+          };
+
+          // Create and send offer
+          const offer = await peerConnection.current.createOffer();
+          await peerConnection.current.setLocalDescription(offer);
+
+          // Emit call initiation event with offer
+          socket.emit(SocketEvents.INITIATE_CALL, {
+            targetUserId,
+            callerId: currentUserId,
+            callerName: currentUserName,
+            offer,
+          });
+
+          // Listen for call rejection
+          socket.once(SocketEvents.CALL_REJECTED, () => {
+            toast.error('Call was rejected');
+            setIsCallInProgress(false);
+            endCall();
+          });
+
+          // Listen for call acceptance
+          socket.once(SocketEvents.CALL_ACCEPTED, ({ answer }) => {
+            if (!peerConnection.current) return;
+
+            console.log('Call accepted, setting remote description');
+            peerConnection.current
+              .setRemoteDescription(new RTCSessionDescription(answer))
+              .then(() => {
+                console.log('Remote description set successfully');
+                router.push(`/call/${targetUserId}`);
+              })
+              .catch((error) => {
+                console.error('Error setting remote description:', error);
+                toast.error('Failed to establish connection');
+                endCall();
+              });
+          });
+        } else {
           toast.error('User is not available');
-          return;
+          setIsCallInProgress(false);
         }
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-        
-        console.log('[WebRTC] Got local media stream');
-        setLocalStream(stream);
-
-        peerConnection.current = new RTCPeerConnection(configuration);
-        console.log('[WebRTC] Created peer connection');
-        
-        // Add all tracks to the peer connection
-        stream.getTracks().forEach(track => {
-          if (!peerConnection.current) return;
-          peerConnection.current.addTrack(track, stream);
-        });
-
-        // Handle ICE candidates
-        peerConnection.current.onicecandidate = (event) => {
-          if (event.candidate) {
-            console.log('[WebRTC] New ICE candidate');
-            socket?.emit('ice-candidate', {
-              candidate: event.candidate,
-              targetUserId,
-            });
-          }
-        };
-
-        // Create and send offer
-        const offer = await peerConnection.current.createOffer();
-        await peerConnection.current.setLocalDescription(offer);
-        
-        console.log('[WebRTC] Created and set local offer');
-
-        // Emit the call event
-        socket.emit('initiate-call', { 
-          targetUserId,
-          offer,
-          callerId: localStorage.getItem('userId'),
-          callerName: localStorage.getItem('userName') || 'Unknown User'
-        });
-        
-        console.log('[WebRTC] Sent call offer to:', targetUserId);
       });
-      
-      // Set a timeout for the call
-      const timeout = setTimeout(() => {
-        if (!isCallInProgress) {
-          console.log('[WebRTC] Call timed out');
-          toast.error('Call timed out. User might be unavailable.');
+
+      // Set timeout for call
+      setTimeout(() => {
+        if (isCallInProgress) {
+          setIsCallInProgress(false);
+          toast.error('Call timed out');
+          socket.emit(SocketEvents.CANCEL_CALL, { targetUserId });
           endCall();
         }
       }, 30000);
-
-      return () => clearTimeout(timeout);
     } catch (error) {
-      console.error('[WebRTC] Error starting call:', error);
-      toast.error('Failed to start call');
+      console.error('Error initiating call:', error);
+      toast.error('Failed to initiate call');
+      setIsCallInProgress(false);
       endCall();
     }
   };
 
   const endCall = () => {
     if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+      localStream.getTracks().forEach((track) => track.stop());
     }
     if (peerConnection.current) {
       peerConnection.current.close();
@@ -275,33 +236,29 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         // Switch back to camera
         const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
         const videoTrack = cameraStream.getVideoTracks()[0];
-        
-        const sender = peerConnection.current.getSenders().find(s => 
-          s.track?.kind === 'video'
-        );
-        
+
+        const sender = peerConnection.current.getSenders().find((s) => s.track?.kind === 'video');
+
         if (sender) {
           await sender.replaceTrack(videoTrack);
         }
-        
+
         setLocalStream(cameraStream);
       } else {
         // Switch to screen sharing
         const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
         const screenTrack = screenStream.getVideoTracks()[0];
-        
-        const sender = peerConnection.current.getSenders().find(s => 
-          s.track?.kind === 'video'
-        );
-        
+
+        const sender = peerConnection.current.getSenders().find((s) => s.track?.kind === 'video');
+
         if (sender) {
           await sender.replaceTrack(screenTrack);
         }
-        
+
         screenTrack.onended = () => {
           toggleScreenShare();
         };
-        
+
         setLocalStream(screenStream);
       }
       setIsScreenSharing(!isScreenSharing);
@@ -315,22 +272,19 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       mediaRecorder.current?.stop();
       setIsRecording(false);
     } else {
-      const stream = new MediaStream([
-        ...localStream!.getTracks(),
-        ...remoteStream!.getTracks()
-      ]);
-      
+      const stream = new MediaStream([...localStream!.getTracks(), ...remoteStream!.getTracks()]);
+
       const recorder = new MediaRecorder(stream);
-      
+
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunks.current.push(event.data);
         }
       };
-      
+
       recorder.onstop = () => {
         const blob = new Blob(recordedChunks.current, {
-          type: 'video/webm'
+          type: 'video/webm',
         });
         // Handle the recorded blob (e.g., upload to server or download)
         const url = URL.createObjectURL(blob);
@@ -340,7 +294,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         a.click();
         recordedChunks.current = [];
       };
-      
+
       mediaRecorder.current = recorder;
       recorder.start();
       setIsRecording(true);
@@ -350,7 +304,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
   const acceptCall = async (callerId: string, offer: RTCSessionDescriptionInit) => {
     try {
       console.log('Accepting call from:', callerId);
-      
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
@@ -358,8 +312,8 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       setLocalStream(stream);
 
       peerConnection.current = new RTCPeerConnection(configuration);
-      
-      stream.getTracks().forEach(track => {
+
+      stream.getTracks().forEach((track) => {
         if (!peerConnection.current) return;
         peerConnection.current.addTrack(track, stream);
       });
@@ -384,9 +338,9 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       await peerConnection.current.setLocalDescription(answer);
 
       console.log('Sending call answer to:', callerId);
-      socket?.emit('call-answer', { 
+      socket?.emit('call-answer', {
         targetUserId: callerId,
-        answer 
+        answer,
       });
 
       setIsCallInProgress(true);
@@ -401,102 +355,79 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     socket?.emit('reject-call', { targetUserId: callerId });
   };
 
-  const initiateCall = async (targetUserId: string) => {
-    if (!socket) {
-      toast.error('Socket connection not available');
-      return;
-    }
+  useEffect(() => {
+    if (!socket) return;
 
-    if (isCallInProgress) {
-      toast.error('Call already in progress');
-      return;
-    }
-
-    const currentUserId = localStorage.getItem('userId');
-    const currentUserName = localStorage.getItem('userName');
-
-    if (!currentUserId || !currentUserName) {
-      toast.error('User not authenticated');
-      return;
-    }
-
-    console.log('Checking user availability:', targetUserId);
-    setIsCallInProgress(true);
-
-    // First check if user is available
-    socket.emit(SocketEvents.CHECK_USER_AVAILABILITY, {
-      targetUserId
+    socket.on(SocketEvents.INCOMING_CALL, async ({ callerId, callerName, offer }) => {
+      console.log('[WebRTC] Received incoming call from:', callerName, '(ID:', callerId, ')');
+      setIncomingCall({
+        callerId,
+        callerName: callerName || 'Unknown User',
+        offer: offer || ({} as RTCSessionDescriptionInit),
+      });
     });
 
-    // Wait for availability response
-    socket.once(SocketEvents.USER_AVAILABILITY_RESPONSE, (response) => {
-      console.log('User availability response:', response);
-      
-      if (response.isAvailable) {
-        console.log('Initiating call to:', targetUserId);
-        
-        // Emit call initiation event
-        socket.emit(SocketEvents.INITIATE_CALL, {
-          targetUserId,
-          callerId: currentUserId,
-          callerName: currentUserName
-        });
+    socket.on(SocketEvents.CALL_ANSWER, async ({ answer, userId }) => {
+      console.log('Call answered by:', userId);
+      if (!peerConnection.current) return;
 
-        // Listen for call rejection
-        socket.once(SocketEvents.CALL_REJECTED, () => {
-          toast.error('Call was rejected');
-          setIsCallInProgress(false);
-        });
-
-        // Listen for call acceptance
-        socket.once(SocketEvents.CALL_ACCEPTED, () => {
-          console.log('Call accepted, navigating to call page');
-          router.push(`/call/${targetUserId}`);
-        });
-
-        // Set timeout for call
-        setTimeout(() => {
-          if (isCallInProgress) {
-            setIsCallInProgress(false);
-            toast.error('Call timed out. User might be unavailable.');
-            socket.emit(SocketEvents.CANCEL_CALL, { targetUserId });
-          }
-        }, 30000);
-
-      } else {
-        toast.error('User is not available');
-        setIsCallInProgress(false);
+      try {
+        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(answer));
+      } catch (error) {
+        console.error('Error setting remote description:', error);
       }
     });
 
-    // Listen for call errors
-    socket.once(SocketEvents.CALL_ERROR, (error) => {
-      console.error('Call error:', error);
-      toast.error(error.message || 'Failed to initiate call');
-      setIsCallInProgress(false);
+    socket.on(SocketEvents.ICE_CANDIDATE, async ({ candidate, userId }) => {
+      if (!peerConnection.current) return;
+      try {
+        await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error('Error adding ICE candidate:', error);
+      }
     });
-  };
+
+    socket.on(SocketEvents.CALL_REJECTED, () => {
+      toast.error('Call was rejected');
+      setIsCallInProgress(false);
+      endCall();
+    });
+
+    socket.on(SocketEvents.CALL_ENDED, () => {
+      endCall();
+    });
+
+    return () => {
+      socket.off(SocketEvents.INCOMING_CALL);
+      socket.off(SocketEvents.CALL_ANSWER);
+      socket.off(SocketEvents.ICE_CANDIDATE);
+      socket.off(SocketEvents.CALL_REJECTED);
+      socket.off(SocketEvents.CALL_ENDED);
+    };
+  }, [socket, endCall]);
 
   return (
-    <WebRTCContext.Provider value={{
-      localStream,
-      remoteStream,
-      peerConnection: peerConnection.current,
-      isCallInProgress,
-      isMuted,
-      isVideoOff,
-      isScreenSharing,
-      isRecording,
-      startCall,
-      endCall,
-      toggleMute,
-      toggleVideo,
-      toggleScreenShare,
-      toggleRecording,
-      acceptCall,
-      rejectCall,
-      initiateCall
-    }}>
+    <WebRTCContext.Provider
+      value={{
+        localStream,
+        remoteStream,
+        peerConnection: peerConnection.current,
+        isCallInProgress,
+        isMuted,
+        isVideoOff,
+        isScreenSharing,
+        isRecording,
+        startCall: initiateCall,
+        endCall,
+        toggleMute,
+        toggleVideo,
+        toggleScreenShare,
+        toggleRecording,
+        acceptCall,
+        rejectCall,
+        initiateCall,
+      }}
+    >
       {children}
       {incomingCall && (
         <IncomingCallModal
@@ -513,4 +444,4 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       )}
     </WebRTCContext.Provider>
   );
-} 
+}

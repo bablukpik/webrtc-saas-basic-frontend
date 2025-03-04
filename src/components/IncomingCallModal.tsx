@@ -25,19 +25,50 @@ export const IncomingCallModal = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Play ringtone when modal appears
+    // Create audio element
     audioRef.current = new Audio('/incoming-call.mp3');
     audioRef.current.loop = true;
-    audioRef.current.play().catch(err => console.error('Failed to play ringtone:', err));
+
+    // Try to play the audio
+    const playAudio = async () => {
+      try {
+        if (audioRef.current) {
+          // Set audio to low volume
+          audioRef.current.volume = 0.3;
+          await audioRef.current.play();
+        }
+      } catch (err) {
+        console.log('Audio autoplay was prevented:', err);
+        // We'll let the user manually start the ringtone if autoplay fails
+      }
+    };
+
+    playAudio();
 
     // Cleanup
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+        audioRef.current = null;
       }
     };
   }, []);
+
+  const handleAccept = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    onAccept();
+  };
+
+  const handleReject = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    onReject();
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -70,24 +101,14 @@ export const IncomingCallModal = ({
           <Button
             variant="destructive"
             className="w-full"
-            onClick={() => {
-              if (audioRef.current) {
-                audioRef.current.pause();
-              }
-              onReject();
-            }}
+            onClick={handleReject}
           >
             Decline
           </Button>
           <Button
             variant="default"
             className="w-full"
-            onClick={() => {
-              if (audioRef.current) {
-                audioRef.current.pause();
-              }
-              onAccept();
-            }}
+            onClick={handleAccept}
           >
             Accept
           </Button>

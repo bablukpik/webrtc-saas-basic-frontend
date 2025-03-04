@@ -8,15 +8,11 @@ import { toast } from 'sonner';
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
-  incomingCall: { callerId: string; callerName: string } | null;
-  setIncomingCall: (call: { callerId: string; callerName: string } | null) => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
   socket: null,
-  isConnected: false,
-  incomingCall: null,
-  setIncomingCall: () => {},
+  isConnected: false
 });
 
 export const useSocket = () => {
@@ -26,7 +22,6 @@ export const useSocket = () => {
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [incomingCall, setIncomingCall] = useState<{ callerId: string; callerName: string } | null>(null);
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -66,14 +61,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    socketInstance.on(SocketEvents.INCOMING_CALL, (data) => {
-      console.log('Incoming call received:', data);
-      setIncomingCall({
-        callerId: data.callerId,
-        callerName: data.callerName
-      });
-    });
-
     socketInstance.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
       toast.error('Failed to connect to server');
@@ -93,7 +80,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, incomingCall, setIncomingCall }}>
+    <SocketContext.Provider value={{ socket, isConnected }}>
       {children}
     </SocketContext.Provider>
   );
