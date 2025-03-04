@@ -17,8 +17,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
   const router = useRouter();
-  const { initiateCall, isCallInProgress } = useWebRTC();
-  const [isSocketReady, setIsSocketReady] = useState(false);
+  const { initiateCall, isCallInProgress, callingUserId } = useWebRTC();
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -103,7 +102,6 @@ export default function UserManagement() {
   return (
     <div className='container mx-auto px-4 py-8'>
       <h1 className='text-3xl font-bold mb-6'>User Management</h1>
-      <SocketDebug onSocketReady={setIsSocketReady} />
       <table className='min-w-full'>
         <thead>
           <tr>
@@ -138,9 +136,9 @@ export default function UserManagement() {
               <td className='border px-4 py-2'>
                 <Button
                   onClick={() => initiateCall(user.id)}
-                  disabled={isCallInProgress || !isSocketReady}
+                  disabled={isCallInProgress && callingUserId === user.id}
                 >
-                  {isCallInProgress ? 'Calling...' : 'Call'}
+                  {callingUserId === user.id ? 'Calling...' : 'Call'}
                 </Button>
               </td>
             </tr>

@@ -23,8 +23,8 @@ const Sidebar = () => {
         <li>
           <Button
             variant="link"
-            className={`w-full text-left ${currentPath === '/admin/users' ? 'text-blue-400' : 'text-gray-200'} hover:bg-gray-700 rounded-md p-2`}
-            onClick={() => router.push('/admin/users')}
+            className={`w-full text-left ${currentPath === '/users' ? 'text-blue-400' : 'text-gray-200'} hover:bg-gray-700 rounded-md p-2`}
+            onClick={() => router.push('/users')}
           >
             User Management
           </Button>

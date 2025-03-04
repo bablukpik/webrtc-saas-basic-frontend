@@ -16,6 +16,7 @@ interface WebRTCContextType {
   isVideoOff: boolean;
   isScreenSharing: boolean;
   isRecording: boolean;
+  callingUserId: string | null;
   startCall: (targetUserId: string) => Promise<void>;
   endCall: () => void;
   toggleMute: () => void;
@@ -36,6 +37,7 @@ const WebRTCContext = createContext<WebRTCContextType>({
   isVideoOff: false,
   isScreenSharing: false,
   isRecording: false,
+  callingUserId: null,
   startCall: async () => {},
   endCall: () => {},
   toggleMute: () => {},
@@ -73,6 +75,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     callerName: string;
     offer: RTCSessionDescriptionInit;
   } | null>(null);
+  const [callingUserId, setCallingUserId] = useState<string | null>(null);
 
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
@@ -99,6 +102,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
 
     console.log('Checking user availability:', targetUserId);
     setIsCallInProgress(true);
+    setCallingUserId(targetUserId);
 
     try {
       // First check if user is available
@@ -153,6 +157,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
           socket.once(SocketEvents.CALL_REJECTED, () => {
             toast.error('Call was rejected');
             setIsCallInProgress(false);
+            setCallingUserId(null);
             endCall();
           });
 
@@ -170,12 +175,14 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
               .catch((error) => {
                 console.error('Error setting remote description:', error);
                 toast.error('Failed to establish connection');
+                setCallingUserId(null);
                 endCall();
               });
           });
         } else {
           toast.error('User is not available');
           setIsCallInProgress(false);
+          setCallingUserId(null);
         }
       });
 
@@ -183,6 +190,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       setTimeout(() => {
         if (isCallInProgress) {
           setIsCallInProgress(false);
+          setCallingUserId(null);
           toast.error('Call timed out');
           socket.emit(SocketEvents.CANCEL_CALL, { targetUserId });
           endCall();
@@ -192,6 +200,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       console.error('Error initiating call:', error);
       toast.error('Failed to initiate call');
       setIsCallInProgress(false);
+      setCallingUserId(null);
       endCall();
     }
   };
@@ -210,6 +219,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     if (isRecording) {
       toggleRecording();
     }
+    setCallingUserId(null);
   };
 
   const toggleMute = () => {
@@ -347,6 +357,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error accepting call:', error);
       toast.error('Failed to accept call');
+      setCallingUserId(null);
       endCall();
     }
   };
@@ -390,6 +401,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     socket.on(SocketEvents.CALL_REJECTED, () => {
       toast.error('Call was rejected');
       setIsCallInProgress(false);
+      setCallingUserId(null);
       endCall();
     });
 
@@ -417,6 +429,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         isVideoOff,
         isScreenSharing,
         isRecording,
+        callingUserId,
         startCall: initiateCall,
         endCall,
         toggleMute,
