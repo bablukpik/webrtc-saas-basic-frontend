@@ -336,7 +336,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       peerConnection.current.onicecandidate = (event) => {
         if (event.candidate) {
           console.log('Sending ICE candidate to:', callerId);
-          socket?.emit('ice-candidate', {
+          socket?.emit(SocketEvents.ICE_CANDIDATE, {
             candidate: event.candidate,
             targetUserId: callerId,
           });
@@ -348,7 +348,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       await peerConnection.current.setLocalDescription(answer);
 
       console.log('Sending call answer to:', callerId);
-      socket?.emit('call-answer', {
+      socket?.emit(SocketEvents.CALL_ANSWER, {
         targetUserId: callerId,
         answer,
       });
@@ -363,7 +363,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
   };
 
   const rejectCall = (callerId: string) => {
-    socket?.emit('reject-call', { targetUserId: callerId });
+    socket?.emit(SocketEvents.CALL_REJECTED, { targetUserId: callerId });
   };
 
   useEffect(() => {
