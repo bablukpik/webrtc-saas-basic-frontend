@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useWebRTC } from '@/providers/webrtc-provider';
-import { SocketDebug } from '@/components/SocketDebug';
 
 interface User {
   id: string;
@@ -134,10 +133,7 @@ export default function UserManagement() {
                 )}
               </td>
               <td className='border px-4 py-2'>
-                <Button
-                  onClick={() => initiateCall(user.id)}
-                  disabled={isCallInProgress && callingUserId === user.id}
-                >
+                <Button onClick={() => initiateCall(user.id)} disabled={isCallInProgress}>
                   {callingUserId === user.id ? 'Calling...' : 'Call'}
                 </Button>
               </td>
