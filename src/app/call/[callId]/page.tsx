@@ -5,6 +5,10 @@ import { useWebRTC } from '@/providers/webrtc-provider';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Monitor, Circle } from 'lucide-react';
 
+// Reusable button style class
+const controlButtonStyle =
+  'h-12 w-12 rounded-full bg-gray-800/80 hover:bg-gray-700/80 shadow-md flex items-center justify-center';
+
 export default function CallPage() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -31,7 +35,6 @@ export default function CallPage() {
       try {
         localVideoRef.current.srcObject = localStream;
       } catch (error: any) {
-        // Explicitly type 'error' as 'any' or 'Error'
         console.error('Error setting local stream:', error);
         setLocalVideoError('Failed to load local video stream.');
       }
@@ -43,7 +46,6 @@ export default function CallPage() {
       try {
         remoteVideoRef.current.srcObject = remoteStream;
       } catch (error: any) {
-        // Explicitly type 'error' as 'any' or 'Error'
         console.error('Error setting remote stream:', error);
         setRemoteVideoError('Failed to load remote video stream.');
       }
@@ -59,11 +61,11 @@ export default function CallPage() {
   }
 
   return (
-    <div className='h-screen bg-gray-900 text-white p-4 flex flex-col'>
-      {/* Video Grid */}
-      <div className='flex-1 grid grid-cols-2 gap-4 mb-4'>
-        {/* Remote Video (Large) */}
-        <div className='relative col-span-2 bg-gray-800 rounded-lg overflow-hidden'>
+    <div className='fixed inset-0 bg-gray-900'>
+      {/* Video Container */}
+      <div className='relative w-full h-full'>
+        {/* Remote Video */}
+        <div className='absolute inset-0'>
           {remoteVideoError ? (
             <div className='absolute inset-0 flex items-center justify-center bg-gray-800 text-red-500'>
               {remoteVideoError}
@@ -79,10 +81,10 @@ export default function CallPage() {
           )}
         </div>
 
-        {/* Local Video (Small) */}
-        <div className='absolute bottom-4 right-4 w-64 aspect-video bg-gray-800 rounded-lg overflow-hidden'>
+        {/* Local Video */}
+        <div className='absolute top-4 right-4 w-[30%] max-w-[200px] min-w-[120px] aspect-video rounded-lg overflow-hidden shadow-lg z-10'>
           {localVideoError ? (
-            <div className='absolute inset-0 flex items-center justify-center bg-gray-800 text-red-500'>
+            <div className='absolute inset-0 flex items-center justify-center bg-gray-800 text-red-500 text-sm'>
               {localVideoError}
             </div>
           ) : (
@@ -91,54 +93,78 @@ export default function CallPage() {
               autoPlay
               playsInline
               muted
-              className='w-full h-full object-cover'
+              className='w-full h-full object-cover bg-gray-800'
               aria-label='Local Video'
             />
           )}
         </div>
-      </div>
 
-      {/* Controls */}
-      <div className='flex justify-center gap-4 p-4 bg-gray-800 rounded-lg'>
-        <Button
-          variant={isMuted ? 'destructive' : 'secondary'}
-          size='icon'
-          onClick={toggleMute}
-          aria-label={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {isMuted ? <MicOff aria-hidden='true' /> : <Mic aria-hidden='true' />}
-        </Button>
+        {/* Controls - Fixed at bottom with higher z-index */}
+        <div className='fixed bottom-0 left-0 right-0 z-50'>
+          <div className='bg-gradient-to-t from-black/90 to-transparent pt-20 pb-6 px-4'>
+            <div className='flex justify-center items-center gap-2 sm:gap-4 max-w-screen-sm mx-auto'>
+              <Button
+                variant={isMuted ? 'destructive' : 'secondary'}
+                size='icon'
+                onClick={toggleMute}
+                className={controlButtonStyle}
+                aria-label={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? (
+                  <MicOff className='h-6 w-6' aria-hidden='true' />
+                ) : (
+                  <Mic className='h-6 w-6' aria-hidden='true' />
+                )}
+              </Button>
 
-        <Button
-          variant={isVideoOff ? 'destructive' : 'secondary'}
-          size='icon'
-          onClick={toggleVideo}
-          aria-label={isVideoOff ? 'Turn On Video' : 'Turn Off Video'}
-        >
-          {isVideoOff ? <VideoOff aria-hidden='true' /> : <Video aria-hidden='true' />}
-        </Button>
+              <Button
+                variant={isVideoOff ? 'destructive' : 'secondary'}
+                size='icon'
+                onClick={toggleVideo}
+                className={controlButtonStyle}
+                aria-label={isVideoOff ? 'Turn On Video' : 'Turn Off Video'}
+              >
+                {isVideoOff ? (
+                  <VideoOff className='h-6 w-6' aria-hidden='true' />
+                ) : (
+                  <Video className='h-6 w-6' aria-hidden='true' />
+                )}
+              </Button>
 
-        <Button
-          variant={isScreenSharing ? 'destructive' : 'secondary'}
-          size='icon'
-          onClick={toggleScreenShare}
-          aria-label={isScreenSharing ? 'Stop Screen Sharing' : 'Start Screen Sharing'}
-        >
-          <Monitor aria-hidden='true' />
-        </Button>
+              <Button
+                variant={isScreenSharing ? 'destructive' : 'secondary'}
+                size='icon'
+                onClick={toggleScreenShare}
+                className={controlButtonStyle}
+                aria-label={isScreenSharing ? 'Stop Screen Sharing' : 'Start Screen Sharing'}
+              >
+                <Monitor className='h-6 w-6' aria-hidden='true' />
+              </Button>
 
-        <Button
-          variant={isRecording ? 'destructive' : 'secondary'}
-          size='icon'
-          onClick={toggleRecording}
-          aria-label={isRecording ? 'Stop Recording' : 'Start Recording'}
-        >
-          <Circle className={isRecording ? 'animate-pulse' : ''} aria-hidden='true' />
-        </Button>
+              <Button
+                variant={isRecording ? 'destructive' : 'secondary'}
+                size='icon'
+                onClick={toggleRecording}
+                className={controlButtonStyle}
+                aria-label={isRecording ? 'Stop Recording' : 'Start Recording'}
+              >
+                <Circle
+                  className={`h-6 w-6 ${isRecording ? 'animate-pulse' : ''}`}
+                  aria-hidden='true'
+                />
+              </Button>
 
-        <Button variant='destructive' size='icon' onClick={endCall} aria-label='End Call'>
-          <PhoneOff aria-hidden='true' />
-        </Button>
+              <Button
+                variant='destructive'
+                size='icon'
+                onClick={endCall}
+                className='h-12 w-12 rounded-full shadow-lg'
+              >
+                <PhoneOff className='h-6 w-6' aria-hidden='true' />
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
