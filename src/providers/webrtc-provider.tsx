@@ -117,21 +117,42 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
   }, [isRecording, localStream, remoteStream]);
 
   const endCall = useCallback(() => {
+    // Clean up media streams
     if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
+      localStream.getTracks().forEach((track) => {
+        track.stop();
+      });
     }
+
+    // Clean up peer connection
     if (peerConnection.current) {
       peerConnection.current.close();
+      peerConnection.current = null;
     }
+
+    // Notify the other user that the call has ended
+    if (socket && callingUserId) {
+      socket.emit(SocketEvents.CALL_ENDED, { targetUserId: callingUserId });
+    }
+
+    // Clean up recording if active
+    if (isRecording) {
+      toggleRecording();
+    }
+
+    // Reset all states
     setLocalStream(null);
     setRemoteStream(null);
     setIsCallInProgress(false);
     setIsScreenSharing(false);
-    if (isRecording) {
-      toggleRecording();
-    }
     setCallingUserId(null);
-  }, [localStream, isRecording, toggleRecording]);
+    setIsMuted(false);
+    setIsVideoOff(false);
+
+    // Show toast and navigate to users page
+    toast.info('Call ended');
+    router.push('/users');
+  }, [localStream, socket, callingUserId, isRecording, toggleRecording, router]);
 
   const initiateCall = useCallback(
     async (targetUserId: string) => {
@@ -422,6 +443,8 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     });
 
     socket.on(SocketEvents.CALL_ENDED, () => {
+      // Show toast and navigate to users page for the other user
+      toast.info('Call ended by other user');
       endCall();
     });
 
