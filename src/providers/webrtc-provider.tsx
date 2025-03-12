@@ -6,6 +6,7 @@ import { SocketEvents } from '@/lib/types/socket-events';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { IncomingCallModal } from '@/components/IncomingCallModal';
+import { checkCameraPermission } from '@/utils/webrtc';
 
 interface WebRTCContextType {
   localStream: MediaStream | null;
@@ -152,6 +153,13 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Check camera permission before initiating call
+      const hasPermission = await checkCameraPermission();
+      if (!hasPermission) {
+        toast.error('Camera permission is required to make a call');
+        return;
+      }
+
       console.log('Checking user availability:', targetUserId);
       setIsCallInProgress(true);
       setCallingUserId(targetUserId);
@@ -295,15 +303,38 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isScreenSharing, localStream]);
 
+  const rejectCall = useCallback(
+    (callerId: string) => {
+      socket?.emit(SocketEvents.CALL_REJECTED, { targetUserId: callerId });
+    },
+    [socket]
+  );
+
   const acceptCall = useCallback(
     async (callerId: string, offer: RTCSessionDescriptionInit) => {
       try {
         console.log('Accepting call from:', callerId);
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
+        const hasPermission = await checkCameraPermission();
+        if (!hasPermission) {
+          toast.error('Camera permission is required to accept the call.');
+          rejectCall(callerId); // reject the call if no camera permission
+          return;
+        }
+
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+        } catch (error: any) {
+          console.error('Error getting user media:', error.name, error.message, error.constraint);
+          toast.error(`Failed to access camera: ${error.name} - ${error.message}`);
+          rejectCall(callerId); // reject call if no camera access
+          return;
+        }
+
         setLocalStream(stream);
 
         peerConnection.current = new RTCPeerConnection(configuration);
@@ -348,14 +379,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         endCall();
       }
     },
-    [router, socket, endCall]
-  );
-
-  const rejectCall = useCallback(
-    (callerId: string) => {
-      socket?.emit(SocketEvents.CALL_REJECTED, { targetUserId: callerId });
-    },
-    [socket]
+    [router, socket, endCall, rejectCall]
   );
 
   useEffect(() => {
