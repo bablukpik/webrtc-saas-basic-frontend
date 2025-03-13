@@ -39,17 +39,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     window.location.href = '/login';
   };
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
   return (
     <html lang='en'>
       <body className={cn(inter.className, 'min-h-screen bg-background')}>
         <ReduxProvider>
           <SocketProvider>
             <WebRTCProvider>
-              {isPublicRoute ? (
+              {isLoading ? (
+                // Display loading within the body
+                <div className='flex justify-center items-center min-h-screen'>Loading...</div>
+              ) : isPublicRoute ? (
                 // Render only the content for public routes
                 <main>{children}</main>
               ) : (
@@ -62,7 +61,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                 </div>
               )}
-              <Toaster richColors position="top-center" />
+              <Toaster richColors position='top-center' />
             </WebRTCProvider>
           </SocketProvider>
         </ReduxProvider>
