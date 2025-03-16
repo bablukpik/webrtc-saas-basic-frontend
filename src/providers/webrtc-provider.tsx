@@ -175,11 +175,11 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Check camera permission before initiating call
-      const hasPermission = await checkCameraPermission();
-      if (!hasPermission) {
-        toast.error('Camera permission is required to make a call');
-        return;
-      }
+      // const hasPermission = await checkCameraPermission();
+      // if (!hasPermission) {
+      //   toast.error('Camera permission is required to make a call');
+      //   return;
+      // }
 
       console.log('Checking user availability:', targetUserId);
       setIsCallInProgress(true);
@@ -247,17 +247,6 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
             setCallingUserId(null);
           }
         });
-
-        // Set timeout for call
-        setTimeout(() => {
-          if (isCallInProgress) {
-            setIsCallInProgress(false);
-            setCallingUserId(null);
-            toast.error('Call timed out');
-            socket.emit(SocketEvents.CANCEL_CALL, { targetUserId });
-            endCall();
-          }
-        }, 30000);
       } catch (error) {
         console.error('Error initiating call:', error);
         toast.error('Failed to initiate call');
@@ -268,6 +257,23 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     },
     [socket, isCallInProgress, endCall]
   );
+
+  // Handle timeout for call initiation
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    if (isCallInProgress) {
+      timeoutId = setTimeout(() => {
+        setIsCallInProgress(false);
+        setCallingUserId(null);
+        toast.error('Call timed out');
+        socket?.emit(SocketEvents.CANCEL_CALL, { targetUserId: callingUserId });
+        endCall();
+      }, 30000);
+    }
+
+    return () => clearTimeout(timeoutId);
+  }, [isCallInProgress, socket, callingUserId, endCall]);
 
   const toggleMute = () => {
     if (localStream) {
