@@ -41,40 +41,53 @@ export const initializeMediaStream = async () => {
       throw new Error('No media devices found');
     }
 
-    // Try video and audio first
+    // Try video and audio with specific constraints
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
       return stream;
     } catch (err) {
-      console.warn('Failed to get both audio and video, trying audio only:', err);
+      console.error('Failed to get video, trying audio only:', err);
 
       // Fallback to audio only
       try {
         const audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
           video: false,
         });
         return audioStream;
       } catch (audioErr: any) {
         console.error('Failed to get audio:', audioErr);
-        toast.error(audioErr);
+        toast.error('Could not access audio device');
         throw new Error('Could not access any media devices');
       }
     }
   } catch (error: any) {
     console.error('Media initialization error:', error);
-
-    // Provide user-friendly error messages
     let errorMessage = 'Failed to access media devices';
+
     if (error.name === 'NotReadableError') {
       errorMessage = 'Camera or microphone is in use by another application';
     } else if (error.name === 'NotAllowedError') {
       errorMessage = 'Please allow access to camera and microphone';
     } else if (error.name === 'NotFoundError') {
       errorMessage = 'No camera or microphone found';
+    } else if (error.name === 'ConstraintNotSatisfiedError') {
+      errorMessage = 'Your device does not support the requested media settings';
     }
 
     toast.error(errorMessage);

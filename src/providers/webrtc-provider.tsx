@@ -201,8 +201,8 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
             const stream = await initializeMediaStream();
             setLocalStream(stream);
             peerConnection.current = setupPeerConnection(
-              stream, 
-              targetUserId, 
+              stream,
+              targetUserId,
               socket,
               (remoteStream) => setRemoteStream(remoteStream)
             );
@@ -251,11 +251,23 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     }
   }, [localStream, isMuted]);
 
-  const toggleVideo = useCallback(() => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      videoTrack.enabled = !videoTrack.enabled;
+  const toggleVideo = useCallback(async () => {
+    if (!localStream) return;
+
+    try {
+      const videoTracks = localStream.getVideoTracks();
+
+      if (videoTracks.length > 0) {
+        console.log('in');
+        // If we have video tracks, just toggle enable/disable
+        const videoTrack = videoTracks[0];
+        videoTrack.enabled = !videoTrack.enabled;
+      }
       setIsVideoOff(!isVideoOff);
+    } catch (error: any) {
+      console.log('out');
+      console.error('Error toggling video:', error);
+      toast.error('Failed to toggle video');
     }
   }, [localStream, isVideoOff]);
 
@@ -329,8 +341,8 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
 
         setLocalStream(stream);
         peerConnection.current = setupPeerConnection(
-          stream, 
-          callerId, 
+          stream,
+          callerId,
           socket,
           (remoteStream) => setRemoteStream(remoteStream)
         );
