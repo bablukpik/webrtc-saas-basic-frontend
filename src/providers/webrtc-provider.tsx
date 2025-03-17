@@ -6,7 +6,7 @@ import { SocketEvents } from '@/lib/types/socket-events';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { IncomingCallModal } from '@/components/IncomingCallModal';
-import { checkCameraPermission, initializeMediaStream } from '@/utils/webrtc';
+import { checkCameraPermission, initializeMediaStream, setupPeerConnection } from '@/utils/webrtc';
 
 interface WebRTCContextType {
   localStream: MediaStream | null;
@@ -52,13 +52,6 @@ const WebRTCContext = createContext<WebRTCContextType>({
 
 export const useWebRTC = () => {
   return useContext(WebRTCContext);
-};
-
-const configuration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    // Add your TURN server configuration here
-  ],
 };
 
 export function WebRTCProvider({ children }: { children: React.ReactNode }) {
@@ -149,6 +142,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     setCallingUserId(null);
     setIsMuted(false);
     setIsVideoOff(false);
+    setIncomingCall(null);
 
     // Show toast and navigate to users page
     toast.info('Call ended');
@@ -206,29 +200,16 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
             // Initialize media with error handling
             const stream = await initializeMediaStream();
             setLocalStream(stream);
-
-            // Create and setup peer connection
-            peerConnection.current = new RTCPeerConnection(configuration);
-
-            // Add tracks to peer connection
-            stream.getTracks().forEach((track) => {
-              if (!peerConnection.current) return;
-              peerConnection.current.addTrack(track, stream);
-            });
-
-            // Handle ICE candidates
-            peerConnection.current.onicecandidate = (event) => {
-              if (event.candidate) {
-                socket.emit(SocketEvents.ICE_CANDIDATE, {
-                  candidate: event.candidate,
-                  targetUserId,
-                });
-              }
-            };
+            peerConnection.current = setupPeerConnection(
+              stream, 
+              targetUserId, 
+              socket,
+              (remoteStream) => setRemoteStream(remoteStream)
+            );
 
             // Create and send offer
-            const offer = await peerConnection.current.createOffer();
-            await peerConnection.current.setLocalDescription(offer);
+            const offer = await peerConnection.current!.createOffer();
+            await peerConnection.current!.setLocalDescription(offer);
 
             // Emit call initiation event with offer
             socket.emit(SocketEvents.INITIATE_CALL, {
@@ -338,10 +319,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
 
         let stream;
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true,
-          });
+          stream = await initializeMediaStream();
         } catch (error: any) {
           console.error('Error getting user media:', error.name, error.message, error.constraint);
           toast.error(`Failed to access camera: ${error.name} - ${error.message}`);
@@ -350,32 +328,16 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         }
 
         setLocalStream(stream);
+        peerConnection.current = setupPeerConnection(
+          stream, 
+          callerId, 
+          socket,
+          (remoteStream) => setRemoteStream(remoteStream)
+        );
 
-        peerConnection.current = new RTCPeerConnection(configuration);
-
-        stream.getTracks().forEach((track) => {
-          if (!peerConnection.current) return;
-          peerConnection.current.addTrack(track, stream);
-        });
-
-        peerConnection.current.ontrack = (event) => {
-          console.log('Received remote track:', event.track.kind);
-          setRemoteStream(event.streams[0]);
-        };
-
-        peerConnection.current.onicecandidate = (event) => {
-          if (event.candidate) {
-            console.log('Sending ICE candidate to:', callerId);
-            socket?.emit(SocketEvents.ICE_CANDIDATE, {
-              candidate: event.candidate,
-              targetUserId: callerId,
-            });
-          }
-        };
-
-        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await peerConnection.current.createAnswer();
-        await peerConnection.current.setLocalDescription(answer);
+        await peerConnection.current!.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await peerConnection.current!.createAnswer();
+        await peerConnection.current!.setLocalDescription(answer);
 
         console.log('Sending call answer to:', callerId);
         socket?.emit(SocketEvents.CALL_ACCEPTED, {
@@ -481,8 +443,6 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       // Set timeout only if we're initiating the call (not when receiving)
       // Only cancel if we're still in the calling state (not connected)
       callTimeoutRef.current = setTimeout(() => {
-        setIsCallInProgress(false);
-        setCallingUserId(null);
         toast.error('Call timed out');
         socket?.emit(SocketEvents.CANCEL_CALL, { targetUserId: callingUserId });
         endCall();

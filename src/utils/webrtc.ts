@@ -1,4 +1,13 @@
 import { toast } from 'sonner';
+import { Socket } from 'socket.io-client';
+import { SocketEvents } from '@/lib/types/socket-events';
+
+const configuration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    // Add your TURN server configuration here
+  ],
+};
 
 export async function checkCameraPermission() {
   try {
@@ -71,4 +80,40 @@ export const initializeMediaStream = async () => {
     toast.error(errorMessage);
     throw error;
   }
+};
+
+export const setupPeerConnection = (
+  stream: MediaStream,
+  targetUserId: string,
+  socket: Socket | null,
+  onTrack: (stream: MediaStream) => void
+) => {
+  // Create new peer connection
+  const peerConnection = new RTCPeerConnection(configuration);
+
+  // Add tracks to peer connection
+  stream.getTracks().forEach((track) => {
+    peerConnection.addTrack(track, stream);
+  });
+
+  // Handle ICE candidates
+  // Listen for ice candidate and send to server
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket?.emit(SocketEvents.ICE_CANDIDATE, {
+        candidate: event.candidate,
+        targetUserId,
+      });
+    }
+  };
+
+  // Handle remote tracks
+  peerConnection.ontrack = (event) => {
+    console.log('Received remote track:', event.track.kind);
+    // Set remote description
+    // The event.streams[0] returns the remote stream
+    onTrack(event.streams[0]);
+  };
+
+  return peerConnection;
 };
