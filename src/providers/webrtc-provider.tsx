@@ -6,7 +6,7 @@ import { SocketEvents } from '@/lib/types/socket-events';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { IncomingCallModal } from '@/components/IncomingCallModal';
-import { checkCameraPermission } from '@/utils/webrtc';
+import { checkCameraPermission, initializeMediaStream } from '@/utils/webrtc';
 
 interface WebRTCContextType {
   localStream: MediaStream | null;
@@ -81,6 +81,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
+  const callTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const toggleRecording = useCallback(() => {
     if (isRecording) {
@@ -197,10 +198,13 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
             console.log('Initiating call to:', targetUserId);
 
             // Get local media stream
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: true,
-            });
+            // const stream = await navigator.mediaDevices.getUserMedia({
+            //   video: true,
+            //   audio: true,
+            // });
+
+            // Initialize media with error handling
+            const stream = await initializeMediaStream();
             setLocalStream(stream);
 
             // Create and setup peer connection
@@ -258,38 +262,21 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     [socket, isCallInProgress, endCall]
   );
 
-  // Handle timeout for call initiation
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    if (isCallInProgress) {
-      timeoutId = setTimeout(() => {
-        setIsCallInProgress(false);
-        setCallingUserId(null);
-        toast.error('Call timed out');
-        socket?.emit(SocketEvents.CANCEL_CALL, { targetUserId: callingUserId });
-        endCall();
-      }, 30000);
-    }
-
-    return () => clearTimeout(timeoutId);
-  }, [isCallInProgress, socket, callingUserId, endCall]);
-
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     if (localStream) {
       const audioTrack = localStream.getAudioTracks()[0];
       audioTrack.enabled = !audioTrack.enabled;
       setIsMuted(!isMuted);
     }
-  };
+  }, [localStream, isMuted]);
 
-  const toggleVideo = () => {
+  const toggleVideo = useCallback(() => {
     if (localStream) {
       const videoTrack = localStream.getVideoTracks()[0];
       videoTrack.enabled = !videoTrack.enabled;
       setIsVideoOff(!isVideoOff);
     }
-  };
+  }, [localStream, isVideoOff]);
 
   const toggleScreenShare = useCallback(async () => {
     if (!peerConnection.current || !localStream) return;
@@ -409,6 +396,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     [router, socket, endCall, rejectCall]
   );
 
+  // Handle incoming calls
   useEffect(() => {
     if (!socket) return;
 
@@ -459,6 +447,12 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
 
       try {
         await peerConnection.current.setRemoteDescription(new RTCSessionDescription(answer));
+
+        // Clear the timeout when call is accepted
+        if (callTimeoutRef.current) {
+          clearTimeout(callTimeoutRef.current);
+        }
+
         // The caller will be navigated to the call page after setting remote description
         if (callingUserId) {
           router.push(`/call/${callingUserId}`);
@@ -480,6 +474,27 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       socket.off(SocketEvents.CALL_ENDED);
     };
   }, [socket, router, callingUserId, endCall]);
+
+  // Handle timeout for call initiation
+  useEffect(() => {
+    if (isCallInProgress && !remoteStream) {
+      // Set timeout only if we're initiating the call (not when receiving)
+      // Only cancel if we're still in the calling state (not connected)
+      callTimeoutRef.current = setTimeout(() => {
+        setIsCallInProgress(false);
+        setCallingUserId(null);
+        toast.error('Call timed out');
+        socket?.emit(SocketEvents.CANCEL_CALL, { targetUserId: callingUserId });
+        endCall();
+      }, 30000);
+    }
+
+    return () => {
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+      }
+    };
+  }, [isCallInProgress, callingUserId, socket, endCall, remoteStream]);
 
   return (
     <WebRTCContext.Provider

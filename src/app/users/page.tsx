@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useWebRTC } from '@/providers/webrtc-provider';
+import { toast } from 'sonner';
 
 interface User {
   id: string;
@@ -98,6 +99,16 @@ export default function UserManagement() {
     }
   };
 
+  const handleCallClick = (userId: string) => {
+    try {
+      initiateCall(userId);
+    } catch (error: any) {
+      toast.error('Call Failed', {
+        description: 'Unable to start call. Please check your camera and microphone permissions.',
+      });
+    }
+  };
+
   return (
     <div className='container mx-auto px-4 py-8'>
       <h1 className='text-3xl font-bold mb-6'>User Management</h1>
@@ -133,8 +144,19 @@ export default function UserManagement() {
                 )}
               </td>
               <td className='border px-4 py-2'>
-                <Button onClick={() => initiateCall(user.id)} disabled={isCallInProgress}>
-                  {callingUserId === user.id ? 'Calling...' : 'Call'}
+                <Button
+                  onClick={() => handleCallClick(user.id)}
+                  disabled={isCallInProgress}
+                  variant={callingUserId === user.id ? 'secondary' : 'default'}
+                >
+                  {callingUserId === user.id ? (
+                    <>
+                      <span className='animate-pulse mr-2'>●</span>
+                      Calling...
+                    </>
+                  ) : (
+                    'Call'
+                  )}
                 </Button>
               </td>
             </tr>
