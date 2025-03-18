@@ -258,14 +258,12 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       const videoTracks = localStream.getVideoTracks();
 
       if (videoTracks.length > 0) {
-        console.log('in');
         // If we have video tracks, just toggle enable/disable
         const videoTrack = videoTracks[0];
         videoTrack.enabled = !videoTrack.enabled;
       }
       setIsVideoOff(!isVideoOff);
     } catch (error: any) {
-      console.log('out');
       console.error('Error toggling video:', error);
       toast.error('Failed to toggle video');
     }
