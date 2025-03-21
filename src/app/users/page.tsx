@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useWebRTC } from '@/providers/webrtc-provider';
 import { toast } from 'sonner';
@@ -12,7 +11,6 @@ import {
 } from '@/lib/redux/api/usersApi';
 
 export default function UserManagement() {
-  const router = useRouter();
   const { initiateCall, isCallInProgress, callingUserId } = useWebRTC();
 
   // RTK Query hooks
@@ -56,9 +54,9 @@ export default function UserManagement() {
     }
   };
 
-  // if (isLoadingUsers) {
-  //   return <div>Loading...</div>;
-  // }
+  if (isLoadingUsers) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className='container mx-auto px-4 py-8'>
