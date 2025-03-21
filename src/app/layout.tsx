@@ -1,16 +1,14 @@
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
-import Sidebar from '@/components/Sidebar';
-import Header from '@/components/Header';
-import './globals.css';
+import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Inter } from 'next/font/google';
-import { usePathname } from 'next/navigation';
 import { ReduxProvider } from '@/lib/redux/provider';
 import { Toaster } from 'sonner';
 import { SocketProvider } from '@/providers/socket-provider';
 import { WebRTCProvider } from '@/providers/webrtc-provider';
+import { LayoutContent } from '@/components/LayoutContent';
+import '@/styles/globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -19,48 +17,13 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [userEmail, setUserEmail] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const pathname = usePathname();
-
-  // Define public routes where we don't want to show the sidebar and header
-  const isPublicRoute = ['/', '/login', '/signup'].includes(pathname);
-
-  useEffect(() => {
-    // Access localStorage only on the client side
-    const email = localStorage.getItem('userEmail');
-    setUserEmail(email || '');
-    setIsLoading(false);
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userEmail');
-    window.location.href = '/login';
-  };
-
   return (
     <html lang='en'>
       <body className={cn(inter.className, 'min-h-screen bg-background')}>
         <ReduxProvider>
           <SocketProvider>
             <WebRTCProvider>
-              {isLoading ? (
-                // Display loading within the body
-                <div className='flex justify-center items-center min-h-screen'>Loading...</div>
-              ) : isPublicRoute ? (
-                // Render only the content for public routes
-                <main>{children}</main>
-              ) : (
-                // Render the dashboard layout with sidebar and header
-                <div className='flex'>
-                  <Sidebar />
-                  <div className='flex-1'>
-                    <Header userEmail={userEmail} onLogout={handleLogout} />
-                    <main className='p-4'>{children}</main>
-                  </div>
-                </div>
-              )}
+              <LayoutContent>{children}</LayoutContent>
               <Toaster richColors position='top-center' />
             </WebRTCProvider>
           </SocketProvider>

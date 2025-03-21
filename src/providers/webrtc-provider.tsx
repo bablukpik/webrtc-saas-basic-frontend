@@ -7,6 +7,9 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { IncomingCallModal } from '@/components/IncomingCallModal';
 import { checkCameraPermission, initializeMediaStream, setupPeerConnection } from '@/utils/webrtc';
+import { useGetCurrentUserQuery } from '@/lib/redux/api/usersApi';
+import { usePathname } from 'next/navigation';
+import { isPublicRoute } from '@/utils/auth';
 
 interface WebRTCContextType {
   localStream: MediaStream | null;
@@ -57,6 +60,13 @@ export const useWebRTC = () => {
 export function WebRTCProvider({ children }: { children: React.ReactNode }) {
   const { socket } = useSocket();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Get user data from RTK Query
+  const { data: user } = useGetCurrentUserQuery(undefined, {
+    skip: isPublicRoute(pathname),
+  });
+
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isCallInProgress, setIsCallInProgress] = useState(false);
@@ -161,28 +171,20 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const currentUserId = localStorage.getItem('userId');
-      const currentUserName = localStorage.getItem('userName');
-
-      if (!currentUserId || !currentUserName) {
+      if (!user) {
         toast.error('User not authenticated');
         return;
       }
 
-      // Check camera permission before initiating call
-      // const hasPermission = await checkCameraPermission();
-      // if (!hasPermission) {
-      //   toast.error('Camera permission is required to make a call');
-      //   return;
-      // }
-
-      console.log('Checking user availability:', targetUserId);
-      setIsCallInProgress(true);
-      setCallingUserId(targetUserId);
-
       try {
-        // First check if user is available
-        socket.emit(SocketEvents.CHECK_USER_AVAILABILITY, { targetUserId });
+        setIsCallInProgress(true);
+        setCallingUserId(targetUserId);
+
+        socket.emit(SocketEvents.CHECK_USER_AVAILABILITY, {
+          targetUserId,
+          currentUserId: user.id,
+          currentUserName: user.name,
+        });
 
         // Wait for availability response
         socket.once(SocketEvents.USER_AVAILABILITY_RESPONSE, async (response) => {
@@ -214,8 +216,8 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
             // Emit call initiation event with offer
             socket.emit(SocketEvents.INITIATE_CALL, {
               targetUserId,
-              callerId: currentUserId,
-              callerName: currentUserName,
+              callerId: user.id,
+              callerName: user.name,
               offer,
             });
 
@@ -240,7 +242,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         endCall();
       }
     },
-    [socket, isCallInProgress, endCall]
+    [socket, isCallInProgress, user, endCall]
   );
 
   const toggleMute = useCallback(() => {
