@@ -4,6 +4,7 @@ import { Mutex } from 'async-mutex';
 
 const mutex = new Mutex();
 
+// This is a base query function that includes the necessary headers and credentials
 const baseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_URL,
   credentials: 'include', // Important for cookies
@@ -21,6 +22,7 @@ const baseQuery = fetchBaseQuery({
   },
 });
 
+// This is a base query function that will automatically refresh the token if the request is unauthorized
 export const baseQueryWithReauth: BaseQueryFn = async (args, api, extraOptions) => {
   // wait until the mutex is available without locking it
   await mutex.waitForUnlock();

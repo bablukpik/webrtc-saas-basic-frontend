@@ -1,16 +1,26 @@
 # WebRTC SaaS Platform - Frontend
 
-A Next.js-based frontend for WebRTC video calling platform.
+A modern WebRTC-based video calling platform built with Next.js and WebRTC API.
+
+## Backend Repository
+
+The backend code for this project can be found at: [WebRTC SaaS Backend](https://github.com/bablukpik/webrtc-saas-basic-backend)
 
 ## Features
 
-- Real-time video/audio calling
-- Screen sharing capability
-- Call recording
+- Real-time video/audio calling with WebRTC
+- Screen sharing capabilities
+- Call recording functionality
+- User authentication with JWT
+- Refresh token mechanism
+- HttpOnly cookie for security
 - User management
 - Responsive design
-- Modern UI with Shadcn UI
-- WebRTC integration
+- Role-based access control
+- Modern UI with Shadcn UI and Tailwind CSS
+- Real-time signaling with Socket.IO
+- Redux Toolkit for state management
+- RTK Query for API data fetching
 
 ## Tech Stack
 
@@ -21,6 +31,7 @@ A Next.js-based frontend for WebRTC video calling platform.
 - Redux Toolkit + RTK Query
 - Shadcn UI
 - Tailwind CSS
+- Zod for validation
 - Sonner (Toast notifications)
 
 ## Prerequisites
