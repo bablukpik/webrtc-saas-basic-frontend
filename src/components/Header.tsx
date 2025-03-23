@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
-  userEmail: string;
+  userEmail: string | undefined;
   onLogout: () => void;
 }
 

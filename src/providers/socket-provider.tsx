@@ -4,6 +4,9 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { SocketEvents } from '@/lib/types/socket-events';
 import { toast } from 'sonner';
+import { usePathname } from 'next/navigation';
+import { publicRoutes } from '@/utils/auth';
+import { useGetCurrentUserQuery } from '@/lib/redux/api/usersApi';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -12,7 +15,7 @@ interface SocketContextType {
 
 const SocketContext = createContext<SocketContextType>({
   socket: null,
-  isConnected: false
+  isConnected: false,
 });
 
 export const useSocket = () => {
@@ -22,13 +25,17 @@ export const useSocket = () => {
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const pathname = usePathname();
+  const isPublicRoute = publicRoutes.includes(pathname);
+
+  // Skip query on public pages
+  const { data: user } = useGetCurrentUserQuery(undefined, {
+    skip: isPublicRoute,
+  });
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
-    const userName = localStorage.getItem('userName');
-    const token = localStorage.getItem('token');
-
-    if (!userId || !token) {
+    // Don't initialize socket on public pages
+    if (isPublicRoute || !user) {
       console.log('No user credentials found');
       return;
     }
@@ -36,7 +43,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     console.log('Initializing socket connection');
 
     const socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000', {
-      auth: { token, userId, userName },
+      // auth: { token, userId, userName },
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
@@ -45,12 +52,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     socketInstance.on('connect', () => {
       console.log('Socket connected with ID:', socketInstance.id);
       setIsConnected(true);
-      
+
       // Register user when socket connects
       socketInstance.emit(SocketEvents.REGISTER_USER, {
-        userId,
-        userName,
-        socketId: socketInstance.id
+        userId: user.id,
+        userName: user.name,
+        socketId: socketInstance.id,
       });
     });
 
@@ -74,14 +81,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     setSocket(socketInstance);
 
     return () => {
-      console.log('Cleaning up socket connection');
-      socketInstance.disconnect();
+      if (socketInstance) {
+        console.log('Cleaning up socket connection');
+        socketInstance.disconnect();
+      }
     };
-  }, []);
+  }, [user, isPublicRoute]);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected }}>
-      {children}
-    </SocketContext.Provider>
+    <SocketContext.Provider value={{ socket, isConnected }}>{children}</SocketContext.Provider>
   );
-} 
+}
