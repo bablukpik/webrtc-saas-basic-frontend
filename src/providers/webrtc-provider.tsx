@@ -30,6 +30,7 @@ interface WebRTCContextType {
   acceptCall: (callerId: string, offer: RTCSessionDescriptionInit) => Promise<void>;
   rejectCall: (callerId: string) => void;
   initiateCall: (targetUserId: string) => void;
+  cancelCall: () => void;
 }
 
 const WebRTCContext = createContext<WebRTCContextType>({
@@ -51,6 +52,7 @@ const WebRTCContext = createContext<WebRTCContextType>({
   acceptCall: async () => {},
   rejectCall: () => {},
   initiateCall: () => {},
+  cancelCall: () => {},
 });
 
 export const useWebRTC = () => {
@@ -120,23 +122,20 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isRecording, localStream, remoteStream]);
 
-  const endCall = useCallback(() => {
+  // Define cleanupCallResources first
+  const cleanupCallResources = useCallback(() => {
     // Clean up media streams
     if (localStream) {
       localStream.getTracks().forEach((track) => {
         track.stop();
       });
+      setLocalStream(null);
     }
 
     // Clean up peer connection
     if (peerConnection.current) {
       peerConnection.current.close();
       peerConnection.current = null;
-    }
-
-    // Notify the other user that the call has ended
-    if (socket && callingUserId) {
-      socket.emit(SocketEvents.CALL_ENDED, { targetUserId: callingUserId });
     }
 
     // Clean up recording if active
@@ -154,10 +153,42 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     setIsVideoOff(false);
     setIncomingCall(null);
 
+    // Clear timeout if exists
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
+    }
+  }, [localStream, isRecording, toggleRecording]);
+
+  // Then define endCall to notify the other user that the call has ended
+  const endCall = useCallback(() => {
+    if (socket && callingUserId) {
+      socket.emit(SocketEvents.CALL_ENDED, { targetUserId: callingUserId });
+    }
+
+    cleanupCallResources();
+
     // Show toast and navigate to users page
     toast.info('Call ended');
     router.push('/users');
-  }, [localStream, socket, callingUserId, isRecording, toggleRecording, router]);
+  }, [socket, callingUserId, router, cleanupCallResources]);
+
+  // Then define cancelCall
+  const cancelCall = useCallback(() => {
+    if (!socket || !callingUserId) return;
+
+    try {
+      socket.emit(SocketEvents.CANCEL_CALL, {
+        targetUserId: callingUserId,
+      });
+
+      cleanupCallResources();
+      toast.info('Call cancelled');
+    } catch (error) {
+      console.error('Error cancelling call:', error);
+      toast.error('Failed to cancel call');
+    }
+  }, [socket, callingUserId, cleanupCallResources]);
 
   const initiateCall = useCallback(
     async (targetUserId: string) => {
@@ -370,7 +401,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     [router, socket, endCall, rejectCall]
   );
 
-  // Handle incoming calls
+  // Handle incoming calls and events
   useEffect(() => {
     if (!socket) return;
 
@@ -411,7 +442,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     });
 
     socket.on(SocketEvents.CALL_ENDED, () => {
-      // Show toast and navigate to users page for the other user
+      // Show toast and navigate to users page for the other/calling user
       toast.info('Call ended by other user');
       endCall();
     });
@@ -439,6 +470,17 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // Listen for call cancelled event
+    socket.on(SocketEvents.CALL_CANCELLED, () => {
+      toast.info('Call was cancelled');
+      cleanupCallResources();
+
+      // Navigate back to users page if on call page
+      if (window.location.pathname.startsWith('/call/')) {
+        router.push('/users');
+      }
+    });
+
     return () => {
       socket.off(SocketEvents.INCOMING_CALL);
       socket.off(SocketEvents.CALL_ANSWER);
@@ -446,8 +488,9 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
       socket.off(SocketEvents.ICE_CANDIDATE);
       socket.off(SocketEvents.CALL_REJECTED);
       socket.off(SocketEvents.CALL_ENDED);
+      socket.off(SocketEvents.CALL_CANCELLED); // Correctly remove CALL_CANCELLED listener
     };
-  }, [socket, router, callingUserId, endCall]);
+  }, [socket, router, callingUserId, endCall, cleanupCallResources]);
 
   // Handle timeout for call initiation
   useEffect(() => {
@@ -489,6 +532,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         acceptCall,
         rejectCall,
         initiateCall,
+        cancelCall,
       }}
     >
       {children}
