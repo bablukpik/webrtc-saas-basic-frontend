@@ -11,7 +11,7 @@ import {
 } from '@/lib/redux/api/usersApi';
 
 export default function UserManagement() {
-  const { initiateCall, isCallInProgress, callingUserId } = useWebRTC();
+  const { initiateCall, isCallInProgress, callingUserId, cancelCall } = useWebRTC();
 
   // RTK Query hooks
   const { data: users = [], isLoading: isLoadingUsers, error: usersError } = useGetAllUsersQuery();
@@ -93,20 +93,23 @@ export default function UserManagement() {
                 )}
               </td>
               <td className='border px-4 py-2'>
-                <Button
-                  onClick={() => handleCallClick(user.id)}
-                  disabled={isCallInProgress}
-                  variant={callingUserId === user.id ? 'secondary' : 'default'}
-                >
-                  {callingUserId === user.id ? (
-                    <>
-                      <span className='animate-pulse mr-2'>●</span>
-                      Calling...
-                    </>
-                  ) : (
-                    'Call'
-                  )}
-                </Button>
+                {callingUserId === user.id ? (
+                  <Button
+                    onClick={cancelCall}
+                    variant='destructive'
+                    className='flex items-center'
+                  >
+                    <span className='animate-pulse mr-2'>●</span>
+                    Cancel Call
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => handleCallClick(user.id)}
+                    disabled={isCallInProgress}
+                  >
+                    Call
+                  </Button>
+                )}
               </td>
             </tr>
           ))}
