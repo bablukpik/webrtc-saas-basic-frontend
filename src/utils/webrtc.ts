@@ -130,3 +130,21 @@ export const setupPeerConnection = (
 
   return peerConnection;
 };
+
+// Check if autoplay is allowed by the browser
+export async function canAutoplay() {
+  const audio = new Audio();
+  audio.muted = true;
+  audio.volume = 0; // Very important in some browsers
+  try {
+    await audio.play();
+    audio.pause();
+    return true;
+  } catch (error) {
+    console.warn('Autoplay test failed:', error);
+    return false;
+  } finally {
+    console.log('Removing audio');
+    audio.remove();
+  }
+}

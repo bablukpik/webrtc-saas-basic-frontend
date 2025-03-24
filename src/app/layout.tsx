@@ -9,6 +9,7 @@ import { SocketProvider } from '@/providers/socket-provider';
 import { WebRTCProvider } from '@/providers/webrtc-provider';
 import { LayoutContent } from '@/components/LayoutContent';
 import '@/styles/globals.css';
+import { FirstInteractionProvider } from '@/providers/first-interaction';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,12 +22,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <html lang='en'>
       <body className={cn(inter.className, 'min-h-screen bg-background')}>
         <ReduxProvider>
-          <SocketProvider>
-            <WebRTCProvider>
-              <LayoutContent>{children}</LayoutContent>
-              <Toaster richColors position='top-center' />
-            </WebRTCProvider>
-          </SocketProvider>
+          <FirstInteractionProvider>
+            <SocketProvider>
+              <WebRTCProvider>
+                <LayoutContent>{children}</LayoutContent>
+                <Toaster richColors position='top-center' />
+              </WebRTCProvider>
+            </SocketProvider>
+          </FirstInteractionProvider>
         </ReduxProvider>
       </body>
     </html>
