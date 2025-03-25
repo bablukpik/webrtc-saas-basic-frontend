@@ -36,11 +36,15 @@ export const LayoutContent: React.FC<LayoutContentProps> = ({ children }) => {
   }
 
   if (isLoading) {
-    return <div className='flex justify-center items-center min-h-screen'>Loading...</div>;
+    return (
+      <div className='flex justify-center items-center min-h-screen'>
+        Loading...
+      </div>
+    );
   }
 
   return (
-    <div className='flex'>
+    <div className='flex min-h-screen'>
       <Sidebar />
       <div className='flex-1'>
         <Header userEmail={user?.email} onLogout={handleLogout} />
