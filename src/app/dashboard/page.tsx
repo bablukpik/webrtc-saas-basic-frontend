@@ -6,7 +6,11 @@ export default function Dashboard() {
   const { data: user, isLoading, error } = useGetCurrentUserQuery();
 
   if (isLoading) {
-    return <div className='flex justify-center items-center min-h-screen'>Loading...</div>;
+    return (
+      <div className='flex justify-center items-center min-h-screen'>
+        Loading...
+      </div>
+    );
   }
 
   if (error) {
@@ -25,11 +29,6 @@ export default function Dashboard() {
               <p>Role: {user.role}</p>
             </div>
           )}
-        </div>
-
-        <div className='space-y-4'>
-          <h2 className='text-xl font-semibold'>Recent Activity</h2>
-          <div className='space-y-2'>{/* Recent Activity */}</div>
         </div>
       </div>
     </div>
