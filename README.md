@@ -41,7 +41,7 @@ The backend code for this project can be found at: [WebRTC SaaS Backend](https:/
 
 ## Environment Variables
 
-Create a `.env.local` file:
+Create a `.env` file:
 
 ```env
 NEXT_PUBLIC_API_URL="http://localhost:5000"
