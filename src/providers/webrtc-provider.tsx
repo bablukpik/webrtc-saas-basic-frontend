@@ -43,16 +43,16 @@ const WebRTCContext = createContext<WebRTCContextType>({
   isScreenSharing: false,
   isRecording: false,
   callingUserId: null,
-  startCall: async () => {},
-  endCall: () => {},
-  toggleMute: () => {},
-  toggleVideo: () => {},
-  toggleScreenShare: async () => {},
-  toggleRecording: () => {},
-  acceptCall: async () => {},
-  rejectCall: () => {},
-  initiateCall: () => {},
-  cancelCall: () => {},
+  startCall: async () => { },
+  endCall: () => { },
+  toggleMute: () => { },
+  toggleVideo: () => { },
+  toggleScreenShare: async () => { },
+  toggleRecording: () => { },
+  acceptCall: async () => { },
+  rejectCall: () => { },
+  initiateCall: () => { },
+  cancelCall: () => { },
 });
 
 export const useWebRTC = () => {
@@ -382,7 +382,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
         const answer = await peerConnection.current!.createAnswer();
         await peerConnection.current!.setLocalDescription(answer);
 
-        console.log('Sending call answer to:', callerId);
+        // Emit the answer to the caller or Emit that call is accepted
         socket?.emit(SocketEvents.CALL_ACCEPTED, {
           targetUserId: callerId,
           answer,
@@ -401,7 +401,7 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
     [router, socket, endCall, rejectCall]
   );
 
-  // Handle incoming calls and events
+  // Handle incoming call and other signaling events
   useEffect(() => {
     if (!socket) return;
 

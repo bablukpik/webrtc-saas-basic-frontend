@@ -33,6 +33,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     skip: isPublicRoute,
   });
 
+  // Socket Connection Initialization Effect
   useEffect(() => {
     // Don't initialize socket on public pages
     if (isPublicRoute || !user) {
